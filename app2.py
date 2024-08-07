@@ -155,7 +155,7 @@ if st.button("Ask") and query:
                     )
 
                     response = openai.chat.completions.create(
-                        model="gpt-4o-mini",
+                        model="gpt-4-turbo",
                         messages=[
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": user_prompt}
