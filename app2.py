@@ -74,7 +74,7 @@ def create_embeddings_and_store(documents):
     embeddings = OpenAIEmbeddings(openai_api_key=openai.api_key)
 
     # Split documents into smaller chunks with overlap
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=25)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
     docs = text_splitter.create_documents(documents)
 
     # Create and store embeddings in FAISS
