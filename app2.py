@@ -148,7 +148,7 @@ if st.button("Ask") and query:
                         "You are a helpful assistant. You are given a set of text chunks from documents. "
                         "Please find the most relevant information based on the question below, "
                         "using only the provided chunks. Don't use your own knowledge! "
-                        "In your response, mention which chunks you used by referring to their numbers."
+                        "In your response, Be complete, concise and accurate and answer the query well!."
                     )
                     user_prompt = sub_query + "\n\n" + "\n\n".join(
                         f"Chunk {i + 1}: {chunk[:200]}..." for i, chunk in enumerate(top_chunks)
