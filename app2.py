@@ -5,13 +5,19 @@ from io import BytesIO
 from docx import Document
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 from langchain_core.vectorstores import VectorStoreRetriever
 import openai
+import nltk
+from nltk.tokenize import sent_tokenize
 import asyncio
+
+# Download NLTK data
+nltk.download('punkt')
 
 # Set your OpenAI API key
 openai.api_key = st.secrets["openai"]["api_key"]
+
 # Streamlit app setup
 st.title("Conversational Document Query App with FAISS")
 
@@ -69,16 +75,35 @@ def process_documents(uploaded_files, urls):
 
     return documents
 
+def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
+    sentences = sent_tokenize(text)  # Split text into sentences
+    chunks = []
+    current_chunk = ""
+
+    for sentence in sentences:
+        if len(current_chunk) + len(sentence) <= chunk_size:
+            current_chunk += sentence + " "
+        else:
+            chunks.append(current_chunk.strip())
+            current_chunk = sentence + " "
+
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+
+    return chunks
+
 def create_embeddings_and_store(documents):
     """Create embeddings for the documents and store them in FAISS."""
     embeddings = OpenAIEmbeddings(openai_api_key=openai.api_key)
 
-    # Split documents into smaller chunks with overlap
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
-    docs = text_splitter.create_documents(documents)
+    # Split documents into smaller chunks using NLTK
+    all_chunks = []
+    for document in documents:
+        chunks = split_text_into_chunks(document, chunk_size=500)
+        all_chunks.extend(chunks)
 
     # Create and store embeddings in FAISS
-    vector_store = FAISS.from_documents(docs, embeddings)
+    vector_store = FAISS.from_texts(all_chunks, embeddings)
     return vector_store
 
 # File uploader for PDF and DOCX files
@@ -145,17 +170,19 @@ if st.button("Ask") and query:
                 if top_chunks:
                     # Create a prompt using the retrieved chunks
                     system_prompt = (
-                        "You are a helpful assistant. You are given a set of text chunks from documents. "
+                        "You are a helpful and knowledgeable assistant. You are given a set of text chunks from documents. "
                         "Please find the most relevant information based on the question below, "
-                        "using only the provided chunks. Don't use your own knowledge! "
-                        "In your response, Be complete, concise and accurate and answer the query well!."
+                        "using only the provided chunks. Ensure your response is comprehensive, accurate, and informative, "
+                        "covering all aspects of the question to the best of your ability. Do not reference the chunks directly. "
+                        "Your goal is to provide a full and complete answer that is easy to understand and helpful to the user."
+                        "Don't answer from your own knowledge, ONLY FROM CHUNKS!"
                     )
                     user_prompt = sub_query + "\n\n" + "\n\n".join(
                         f"Chunk {i + 1}: {chunk[:200]}..." for i, chunk in enumerate(top_chunks)
                     )
 
                     response = openai.chat.completions.create(
-                        model="gpt-4o-mini-2024-07-18",
+                        model="gpt-4o-mini",
                         messages=[
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": user_prompt}
@@ -176,6 +203,7 @@ if st.button("Ask") and query:
         st.session_state.history.append({"query": query, "response": final_response})
 
         # Clear the input box after processing
-        query = ""  # Reset the query input value
+        query = ""
     else:
         st.warning("Please process documents before querying.")
+
