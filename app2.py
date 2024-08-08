@@ -206,4 +206,4 @@ if st.button("Ask") and query:
         query = ""
     else:
         st.warning("Please process documents before querying.")
-
+        
