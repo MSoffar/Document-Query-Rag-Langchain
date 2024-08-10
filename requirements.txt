@@ -5,7 +5,6 @@ python-docx
 openai
 nltk
 spacy
-transformers
 rake-nltk
 langchain-openai
 langchain-community
