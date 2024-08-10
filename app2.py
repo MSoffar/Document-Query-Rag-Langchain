@@ -10,14 +10,10 @@ from langchain_core.vectorstores import VectorStoreRetriever
 import openai
 import nltk
 from nltk.tokenize import sent_tokenize
-from textblob import TextBlob
 import asyncio
-import re
-import string
-from nltk.corpus import stopwords
 
-# Initialize tools
-stop_words = set(stopwords.words('english'))
+# Download NLTK data
+nltk.download('punkt')
 
 # Set your OpenAI API key
 openai.api_key = st.secrets["openai"]["api_key"]
@@ -79,34 +75,6 @@ def process_documents(uploaded_files, urls):
 
     return documents
 
-def clean_text(text):
-    # Step 1: Lowercasing
-    text = text.lower()
-    
-    # Step 2: Remove Stop Words
-    words = nltk.word_tokenize(text)
-    text = ' '.join([word for word in words if word not in stop_words])
-    
-    # Step 3: Spelling Correction using TextBlob
-    text_blob = TextBlob(text)
-    text = str(text_blob.correct())
-    
-    # Step 4: Remove Punctuation and Special Characters
-    text = re.sub(f"[{string.punctuation}]", "", text)
-    
-    # Step 5: Normalize Text (e.g., expand contractions)
-    text = re.sub(r"\bcan't\b", "cannot", text)
-    text = re.sub(r"\bwon't\b", "will not", text)
-    text = re.sub(r"\bI'm\b", "I am", text)
-    text = re.sub(r"\bI've\b", "I have", text)
-    text = re.sub(r"\blet's\b", "let us", text)
-    # Add more contractions as needed
-    
-    # Step 6: Remove Non-ASCII Characters
-    text = re.sub(r'[^\x00-\x7F]+', ' ', text)
-    
-    return text
-
 def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
     sentences = sent_tokenize(text)  # Split text into sentences
     chunks = []
@@ -116,11 +84,11 @@ def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
         if len(current_chunk) + len(sentence) <= chunk_size:
             current_chunk += sentence + " "
         else:
-            chunks.append(clean_text(current_chunk.strip()))  # Apply cleaning function here
+            chunks.append(current_chunk.strip())
             current_chunk = sentence + " "
 
     if current_chunk:
-        chunks.append(clean_text(current_chunk.strip()))  # Apply cleaning function here
+        chunks.append(current_chunk.strip())
 
     return chunks
 
