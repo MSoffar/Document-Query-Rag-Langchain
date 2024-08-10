@@ -10,21 +10,13 @@ from langchain_core.vectorstores import VectorStoreRetriever
 import openai
 import nltk
 from nltk.tokenize import sent_tokenize
-from rake_nltk import Rake
-from textblob import TextBlob
-import spacy
 import asyncio
 
-# Set the local NLTK data path
-nltk_data_path = os.path.join(os.path.dirname(__file__), 'nltk_data')
-nltk.data.path.append(nltk_data_path)
-
-# Load SpaCy model from local directory
-model_path = os.path.join(os.path.dirname(__file__), 'en_core_web_sm/en_core_web_sm-3.6.0')
-nlp = spacy.load(model_path)
+# Download NLTK data
+nltk.download('punkt')
 
 # Set your OpenAI API key
-openai.api_key =st.secrets["openai"]["api_key"]
+openai.api_key = st.secrets["openai"]["api_key"]
 
 # Streamlit app setup
 st.title("Conversational Document Query App with FAISS")
@@ -83,37 +75,6 @@ def process_documents(uploaded_files, urls):
 
     return documents
 
-def generate_title(chunk):
-    return chunk.split('.')[0][:50] + '...'
-
-def extract_keywords(chunk):
-    r = Rake()
-    r.extract_keywords_from_text(chunk)
-    return r.get_ranked_phrases()
-
-def generate_summary(chunk):
-    sentences = sent_tokenize(chunk)
-    return sentences[0] if len(sentences) > 1 else chunk[:100] + '...'
-
-def extract_entities(chunk):
-    doc = nlp(chunk)
-    return [(ent.text, ent.label_) for ent in doc.ents]
-
-def generate_questions(chunk):
-    # Basic example, could be enhanced with a language model
-    return ["What is this chunk about?", "What key points are discussed?"]
-
-def augment_chunk(chunk):
-    return {
-        "chunk": chunk,
-        "title": generate_title(chunk),
-        "keywords": extract_keywords(chunk),
-        "summary": generate_summary(chunk),
-        "entities": extract_entities(chunk),
-        "questions": generate_questions(chunk),
-        "source": "Document X, Page Y"  # Replace with actual source info if available
-    }
-
 def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
     sentences = sent_tokenize(text)  # Split text into sentences
     chunks = []
@@ -139,16 +100,11 @@ def create_embeddings_and_store(documents):
     all_chunks = []
     for document in documents:
         chunks = split_text_into_chunks(document, chunk_size=500)
-        for chunk in chunks:
-            augmented_chunk = augment_chunk(chunk)
-            all_chunks.append(augmented_chunk)
+        all_chunks.extend(chunks)
 
     # Create and store embeddings in FAISS
-    texts = [chunk["chunk"] for chunk in all_chunks]
-    vector_store = FAISS.from_texts(texts, embeddings)
-
-    # Optionally, store augmented data elsewhere or return it
-    return vector_store, all_chunks
+    vector_store = FAISS.from_texts(all_chunks, embeddings)
+    return vector_store
 
 # File uploader for PDF and DOCX files
 uploaded_files = st.file_uploader("Upload PDF/DOCX files", type=["pdf", "docx"], accept_multiple_files=True)
@@ -170,10 +126,8 @@ if st.button("Process Documents"):
     documents = process_documents(uploaded_files, urls)
 
     if documents:
-        # Create and store embeddings, and get augmented chunks
-        vector_store, all_chunks = create_embeddings_and_store(documents)
-        st.session_state.vector_store = vector_store
-        st.session_state.augmented_chunks = all_chunks
+        # Create and store embeddings
+        st.session_state.vector_store = create_embeddings_and_store(documents)
         st.success("Documents processed and embeddings created.")
     else:
         st.warning("No documents to process.")
@@ -202,7 +156,7 @@ if st.button("Ask") and query:
         retriever = VectorStoreRetriever(vectorstore=vector_store)
 
         # Split the query into sub-queries if needed
-        sub_queries = query.split('?')
+        sub_queries = query.split('?')  # Splitting by question marks as a simple heuristic
 
         responses = []
 
@@ -214,20 +168,17 @@ if st.button("Ask") and query:
                 top_chunks = asyncio.run(get_relevant_chunks(sub_query, retriever, top_k=5))
 
                 if top_chunks:
-                    # Retrieve augmented data from session state
-                    augmented_data = [chunk for chunk in st.session_state.augmented_chunks if chunk["chunk"] in top_chunks]
-
-                    # Create a prompt using the retrieved chunks and metadata
+                    # Create a prompt using the retrieved chunks
                     system_prompt = (
-                        "You are a helpful and knowledgeable assistant. You are given a set of text chunks from documents, along with metadata such as title, summary, and keywords. "
+                        "You are a helpful and knowledgeable assistant. You are given a set of text chunks from documents. "
                         "Please find the most relevant information based on the question below, "
-                        "using only the provided chunks and metadata. Ensure your response is comprehensive, accurate, and informative, "
-                        "covering all aspects of the question to the best of your ability."
+                        "using only the provided chunks. Ensure your response is comprehensive, accurate, and informative, "
+                        "covering all aspects of the question to the best of your ability. Do not reference the chunks directly. "
+                        "Your goal is to provide a full and complete answer that is easy to understand and helpful to the user."
+                        "Don't answer from your own knowledge, ONLY FROM CHUNKS!"
                     )
-
                     user_prompt = sub_query + "\n\n" + "\n\n".join(
-                        f"Chunk {i + 1}: {chunk['chunk'][:200]}... Title: {chunk['title']}, Summary: {chunk['summary']}, Keywords: {', '.join(chunk['keywords'])}" 
-                        for i, chunk in enumerate(augmented_data)
+                        f"Chunk {i + 1}: {chunk[:200]}..." for i, chunk in enumerate(top_chunks)
                     )
 
                     response = openai.chat.completions.create(
