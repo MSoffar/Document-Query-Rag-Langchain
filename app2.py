@@ -127,10 +127,10 @@ def augment_chunk(chunk, document_name="Unknown Document"):
         "chunk": chunk,
         "title": generate_title(chunk),
         "keywords": extract_keywords(chunk),
-        "summary": generate_summary(chunk),
-        "entities": extract_entities(chunk),
-        "questions": generate_questions(chunk),
-        "source": f"{document_name}, Page {page_info}"
+        "summary": generate_summary(chunk)
+        ##"entities": extract_entities(chunk),
+        ##"questions": generate_questions(chunk),
+        ##"source": f"{document_name}, Page {page_info}"
     }
 
 
