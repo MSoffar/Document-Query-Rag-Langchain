@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 import requests
 import PyPDF2
 from io import BytesIO
@@ -11,15 +12,21 @@ import openai
 import nltk
 from nltk.tokenize import sent_tokenize
 import spacy
-import os
 from rake_nltk import Rake
 
-# Download NLTK data
-nltk.download('punkt')
+# Set up paths and download if necessary
+nltk_data_path = os.path.join(os.path.dirname(__file__), 'nltk_data')
+if not os.path.exists(nltk_data_path):
+    nltk.download('punkt', download_dir=nltk_data_path)
+else:
+    nltk.data.path.append(nltk_data_path)
 
-# Load SpaCy model from local directory
+# Load SpaCy model
 model_path = os.path.join(os.path.dirname(__file__), 'en_core_web_sm')
-nlp = spacy.load(model_path)
+if not os.path.exists(model_path):
+    st.error("SpaCy model not found. Please ensure 'en_core_web_sm' is in the directory.")
+else:
+    nlp = spacy.load(model_path)
 
 # Set your OpenAI API key
 openai.api_key = st.secrets["openai"]["api_key"]
@@ -81,18 +88,6 @@ def process_documents(uploaded_files, urls):
 
     return documents
 
-def clean_text(text):
-    """Clean and preprocess text."""
-    doc = nlp(text.lower())
-    cleaned_text = " ".join([token.lemma_ for token in doc if not token.is_stop and not token.is_punct])
-    return cleaned_text
-
-def extract_keywords(text):
-    """Extract keywords from text using RAKE."""
-    rake = Rake()
-    rake.extract_keywords_from_text(text)
-    return rake.get_ranked_phrases()
-
 def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
     sentences = sent_tokenize(text)  # Split text into sentences
     chunks = []
@@ -110,20 +105,6 @@ def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
 
     return chunks
 
-def enrich_chunks(chunks):
-    """Enrich chunks with metadata like cleaned text, keywords, etc."""
-    enriched_chunks = []
-    for i, chunk in enumerate(chunks):
-        cleaned_chunk = clean_text(chunk)
-        keywords = extract_keywords(chunk)
-        enriched_chunks.append({
-            "original_chunk": chunk,
-            "cleaned_chunk": cleaned_chunk,
-            "keywords": keywords,
-            "source": f"Document X, Page Y"  # Replace with actual source info if available
-        })
-    return enriched_chunks
-
 def create_embeddings_and_store(documents):
     """Create embeddings for the documents and store them in FAISS."""
     embeddings = OpenAIEmbeddings(openai_api_key=openai.api_key)
@@ -132,14 +113,10 @@ def create_embeddings_and_store(documents):
     all_chunks = []
     for document in documents:
         chunks = split_text_into_chunks(document, chunk_size=500)
-        enriched_chunks = enrich_chunks(chunks)
-        all_chunks.extend(enriched_chunks)
-
-    # Extract cleaned chunks for embedding
-    cleaned_texts = [chunk['cleaned_chunk'] for chunk in all_chunks]
+        all_chunks.extend(chunks)
 
     # Create and store embeddings in FAISS
-    vector_store = FAISS.from_texts(cleaned_texts, embeddings)
+    vector_store = FAISS.from_texts(all_chunks, embeddings)
     return vector_store
 
 # File uploader for PDF and DOCX files
