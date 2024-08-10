@@ -5,14 +5,13 @@ import PyPDF2
 from io import BytesIO
 from docx import Document
 from langchain_openai import OpenAIEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_core.vectorstores import VectorStoreRetriever
 import openai
 import nltk
 from nltk.tokenize import sent_tokenize
 from rake_nltk import Rake
-import spacy  # Ensure spacy is imported
+import spacy
 import asyncio
 
 nltk_data_path = os.path.join(os.path.dirname(__file__), 'nltk_data')
@@ -20,7 +19,7 @@ nltk.data.path.append(nltk_data_path)
 
 # Load SpaCy model from local directory
 model_path = os.path.join(os.path.dirname(__file__), 'en_core_web_sm/en_core_web_sm-3.6.0')
-nlp = spacy.load(model_path)  # Fixed the missing parenthesis here
+nlp = spacy.load(model_path)
 
 # Set your OpenAI API key
 openai.api_key = st.secrets["openai"]["api_key"]
@@ -83,20 +82,27 @@ def process_documents(uploaded_files, urls):
     return documents
 
 def generate_title(chunk):
-    return chunk.split('.')[0][:50] + '...'
+    # Use the first sentence for a quick title
+    sentences = sent_tokenize(chunk)
+    if sentences:
+        title = sentences[0][:50] + '...'  # Take the first 50 characters of the first sentence
+        return title
+    return chunk[:50] + '...'  # Fallback to the first 50 characters of the chunk
 
 def extract_keywords(chunk):
+    # Limit the length of text processed for faster extraction
     r = Rake()
-    r.extract_keywords_from_text(chunk)
-    return r.get_ranked_phrases()
+    r.extract_keywords_from_text(chunk[:200])  # Process only the first 200 characters
+    return r.get_ranked_phrases()[:5]  # Return the top 5 keywords
 
 def generate_summary(chunk):
     sentences = sent_tokenize(chunk)
-    return sentences[0] if len(sentences) > 1 else chunk[:100] + '...'
-
-def extract_entities(chunk):
-    doc = nlp(chunk)
-    return [(ent.text, ent.label_) for ent in doc.ents]
+    if len(sentences) > 1:
+        # Combine the first sentence and another sentence that contains the most keywords
+        keywords = extract_keywords(chunk)
+        important_sentence = max(sentences[1:], key=lambda s: sum(1 for k in keywords if k in s))
+        return sentences[0] + " " + important_sentence
+    return chunk[:100] + '...'  # Fallback to the first 100 characters
 
 def augment_chunk(chunk):
     return {
@@ -104,7 +110,6 @@ def augment_chunk(chunk):
         "title": generate_title(chunk),
         "keywords": extract_keywords(chunk),
         "summary": generate_summary(chunk),
-        # "entities": extract_entities(chunk),
     }
 
 def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
