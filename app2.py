@@ -1,4 +1,3 @@
-import os
 import streamlit as st
 import requests
 import PyPDF2
@@ -10,12 +9,13 @@ from langchain_community.vectorstores import FAISS
 from langchain_core.vectorstores import VectorStoreRetriever
 import openai
 import nltk
-from nltk.tokenize import sent_tokenize
-import asyncio
-from rake_nltk import Rake
+import os
 import spacy
+from nltk.tokenize import sent_tokenize
+from rake_nltk import Rake
+import asyncio
 
-# Check if 'punkt' is downloaded; if not, download it
+# Ensure NLTK's punkt tokenizer is available
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
@@ -26,7 +26,7 @@ model_path = os.path.join(os.path.dirname(__file__), 'en_core_web_sm/en_core_web
 nlp = spacy.load(model_path)
 
 # Set your OpenAI API key
-openai.api_key = st.secrets['openai']['api_key']
+openai.api_key = st.secrets["openai"]["api_key"]
 
 # Streamlit app setup
 st.title("Conversational Document Query App with FAISS")
@@ -102,6 +102,28 @@ def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
 
     return chunks
 
+def enrich_chunks(chunks):
+    """Enrich chunks with title, summary, and keywords."""
+    enriched_chunks = []
+    rake = Rake()
+
+    for chunk in chunks:
+        doc = nlp(chunk)
+        title = doc[:10].text.strip()  # First 10 tokens as title (customize as needed)
+        summary = doc[:30].text.strip()  # First 30 tokens as summary (customize as needed)
+        rake.extract_keywords_from_text(chunk)
+        keywords = rake.get_ranked_phrases()
+
+        enriched_chunk = {
+            "chunk": chunk,
+            "title": title,
+            "summary": summary,
+            "keywords": keywords
+        }
+        enriched_chunks.append(enriched_chunk)
+
+    return enriched_chunks
+
 def create_embeddings_and_store(documents):
     """Create embeddings for the documents and store them in FAISS."""
     embeddings = OpenAIEmbeddings(openai_api_key=openai.api_key)
@@ -110,35 +132,12 @@ def create_embeddings_and_store(documents):
     all_chunks = []
     for document in documents:
         chunks = split_text_into_chunks(document, chunk_size=500)
-        all_chunks.extend(chunks)
-
-    # Enrich the chunks
-    enriched_chunks = [enrich_chunk(chunk) for chunk in all_chunks]
+        enriched_chunks = enrich_chunks(chunks)
+        all_chunks.extend([ec["chunk"] for ec in enriched_chunks])
 
     # Create and store embeddings in FAISS
-    vector_store = FAISS.from_texts(enriched_chunks, embeddings)
+    vector_store = FAISS.from_texts(all_chunks, embeddings)
     return vector_store
-
-def enrich_chunk(chunk):
-    """Enrich a text chunk with title, summary, and keywords."""
-    doc = nlp(chunk)
-    title = doc.ents[0].text if doc.ents else "No Title"
-    summary = doc[:15].text  # A simple summary using the first 15 tokens
-    keywords = extract_keywords(chunk)
-    
-    enriched_chunk = {
-        "Chunk": chunk,
-        "Title": title,
-        "Summary": summary,
-        "Keywords": keywords
-    }
-    return enriched_chunk
-
-def extract_keywords(text):
-    """Extract keywords using RAKE."""
-    rake = Rake()
-    rake.extract_keywords_from_text(text)
-    return rake.get_ranked_phrases()
 
 # File uploader for PDF and DOCX files
 uploaded_files = st.file_uploader("Upload PDF/DOCX files", type=["pdf", "docx"], accept_multiple_files=True)
