@@ -15,24 +15,18 @@ import asyncio
 from rake_nltk import Rake
 import spacy
 
-# Specify the path to the 'tokenizers' directory
-nltk_data_path = os.path.join(os.path.dirname(__file__), 'tokenizers')
-
-# Add the path to nltk's data search paths
-nltk.data.path.append(nltk_data_path)
-
-# Attempt to load the punkt tokenizer
+# Check if 'punkt' is downloaded; if not, download it
 try:
-    nltk.data.find('tokenizers/punkt/english.pickle')
+    nltk.data.find('tokenizers/punkt')
 except LookupError:
-    nltk.download('punkt', download_dir=nltk_data_path)
+    nltk.download('punkt')
 
 # Load SpaCy model from local directory
 model_path = os.path.join(os.path.dirname(__file__), 'en_core_web_sm/en_core_web_sm-3.6.0')
 nlp = spacy.load(model_path)
 
 # Set your OpenAI API key
-openai.api_key = st.secrets["openai"]["api_key"]
+openai.api_key = st.secrets['openai']['api_key']
 
 # Streamlit app setup
 st.title("Conversational Document Query App with FAISS")
