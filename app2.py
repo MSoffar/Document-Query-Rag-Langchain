@@ -11,7 +11,7 @@ import openai
 import nltk
 from nltk.tokenize import sent_tokenize
 import asyncio
-
+import os
 # Download NLTK data
 # Set the local NLTK data path
 nltk_data_path = os.path.join(os.path.dirname(__file__), 'nltk_data')
