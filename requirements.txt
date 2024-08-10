@@ -8,4 +8,5 @@ spacy
 transformers
 rake-nltk
 langchain-openai
-langchain
+langchain-community
+langchain-core
