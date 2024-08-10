@@ -6,7 +6,7 @@ from docx import Document
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_community.vectorstores import VectorStoreRetriever
+from langchain_core.vectorstores import VectorStoreRetriever
 import openai
 import nltk
 from nltk.tokenize import sent_tokenize
