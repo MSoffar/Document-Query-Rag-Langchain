@@ -38,7 +38,7 @@ def read_pdf(file):
 
 def convert_docx_to_text(file):
     doc = Document(file)
-    return '\\n'.join([para.text for para in doc.paragraphs])
+    return '\n'.join([para.text for para in doc.paragraphs])
 
 def download_and_convert_pdf_to_text(pdf_url):
     response = requests.get(pdf_url, timeout=50)
@@ -69,33 +69,60 @@ def generate_summary(text, sentence_count=2):
 
 def split_text_into_chunks_with_titles(text, chunk_size=500):
     """Splits text into chunks, including titles, keywords, and summaries."""
-    sentences = sent_tokenize(text)  # Split text into sentences
+    sentences = sent_tokenize(text)
     chunks = []
     current_chunk = ""
     current_title = "Untitled Section"
 
     for sentence in sentences:
-        if sentence.strip().endswith(":"):  # Assuming titles end with a colon
+        if sentence.strip().endswith(":"):
             current_title = sentence.strip().rstrip(":")
-            continue  # Skip adding the title sentence to the chunk
+            continue
 
         if len(current_chunk) + len(sentence) <= chunk_size:
             current_chunk += sentence + " "
         else:
-            # Augment the chunk before appending
             keywords = extract_keywords(current_chunk)
             summary = generate_summary(current_chunk)
-            augmented_chunk = f"Title: {current_title}\\n{current_chunk.strip()}\\nKeywords: {', '.join(keywords)}\\nSummary: {summary}"
+            augmented_chunk = f"Title: {current_title}\n{current_chunk.strip()}\nKeywords: {', '.join(keywords)}\nSummary: {summary}"
             chunks.append(augmented_chunk)
             current_chunk = sentence + " "
 
     if current_chunk:
         keywords = extract_keywords(current_chunk)
         summary = generate_summary(current_chunk)
-        augmented_chunk = f"Title: {current_title}\\n{current_chunk.strip()}\\nKeywords: {', '.join(keywords)}\\nSummary: {summary}"
+        augmented_chunk = f"Title: {current_title}\n{current_chunk.strip()}\nKeywords: {', '.join(keywords)}\nSummary: {summary}"
         chunks.append(augmented_chunk)
 
     return chunks
+
+def process_documents(uploaded_files, urls):
+    """Process uploaded files and URLs to extract text."""
+    documents = []
+
+    # Process uploaded files
+    for uploaded_file in uploaded_files:
+        if uploaded_file.type == "application/pdf":
+            text = read_pdf(uploaded_file)
+        elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            text = convert_docx_to_text(uploaded_file)
+        else:
+            st.warning(f"Unsupported file type: {uploaded_file.type}")
+            continue
+        documents.append(text)
+
+    # Process URLs
+    for url in urls:
+        if url.lower().endswith(".pdf"):
+            text = download_and_convert_pdf_to_text(url)
+        elif url.lower().endswith(".docx"):
+            text = download_and_convert_docx_to_text(url)
+        else:
+            st.warning(f"Unsupported URL type: {url}")
+            continue
+        documents.append(text)
+
+    return documents
 
 def create_embeddings_and_store(documents):
     """Create embeddings for the documents and store them in FAISS."""
@@ -171,7 +198,7 @@ if st.button("Ask") and query:
                         "Your goal is to provide a full and complete answer that is easy to understand and helpful to the user."
                         "Don't answer from your own knowledge, ONLY FROM CHUNKS!"
                     )
-                    user_prompt = sub_query + "\\n\\n" + "\\n\\n".join(
+                    user_prompt = sub_query + "\n\n" + "\n\n".join(
                         f"Chunk {i + 1}: {chunk[:200]}..." for i, chunk in enumerate(top_chunks)
                     )
 
@@ -189,7 +216,7 @@ if st.button("Ask") and query:
                 else:
                     responses.append(f"**{sub_query}**: No relevant chunks retrieved.")
 
-        final_response = "\\n\\n".join(responses)
+        final_response = "\n\n".join(responses)
         st.write("Refined Response:", final_response)
 
         st.session_state.history.append({"query": query, "response": final_response})
