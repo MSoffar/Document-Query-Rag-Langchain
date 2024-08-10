@@ -10,11 +10,11 @@ from langchain_core.vectorstores import VectorStoreRetriever
 import openai
 import nltk
 from nltk.tokenize import sent_tokenize
+from textblob import TextBlob
 import asyncio
 import re
 import string
 from nltk.corpus import stopwords
-from spellchecker import SpellChecker
 
 # Download NLTK data
 nltk.download('punkt')
@@ -22,7 +22,6 @@ nltk.download('stopwords')
 
 # Initialize tools
 stop_words = set(stopwords.words('english'))
-spell = SpellChecker()
 
 # Set your OpenAI API key
 openai.api_key = st.secrets["openai"]["api_key"]
@@ -92,10 +91,9 @@ def clean_text(text):
     words = nltk.word_tokenize(text)
     text = ' '.join([word for word in words if word not in stop_words])
     
-    # Step 3: Spelling Correction
-    words = text.split()
-    corrected_words = [spell.correction(word) for word in words]
-    text = ' '.join(corrected_words)
+    # Step 3: Spelling Correction using TextBlob
+    text_blob = TextBlob(text)
+    text = str(text_blob.correct())
     
     # Step 4: Remove Punctuation and Special Characters
     text = re.sub(f"[{string.punctuation}]", "", text)
