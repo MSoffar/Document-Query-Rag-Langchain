@@ -1,5 +1,5 @@
-import streamlit as st
 import os
+import streamlit as st
 import requests
 import PyPDF2
 from io import BytesIO
@@ -11,23 +11,25 @@ from langchain_core.vectorstores import VectorStoreRetriever
 import openai
 import nltk
 from nltk.tokenize import sent_tokenize
-import spacy
+import asyncio
 from rake_nltk import Rake
+import spacy
 
-# Set up paths and download if necessary
-nltk_data_path = os.path.join(os.path.dirname(__file__), 'nltk_data')
-if not os.path.exists(nltk_data_path):
+# Specify the path to the 'tokenizers' directory
+nltk_data_path = os.path.join(os.path.dirname(__file__), 'tokenizers')
+
+# Add the path to nltk's data search paths
+nltk.data.path.append(nltk_data_path)
+
+# Attempt to load the punkt tokenizer
+try:
+    nltk.data.find('tokenizers/punkt/english.pickle')
+except LookupError:
     nltk.download('punkt', download_dir=nltk_data_path)
-else:
-    nltk.data.path.append(nltk_data_path)
 
-# Load SpaCy model
-model_base_path = os.path.join(os.path.dirname(__file__), 'en_core_web_sm')
-model_path = os.path.join(model_base_path, 'en_core_web_sm-3.6.0')
-if not os.path.exists(model_path):
-    st.error("SpaCy model not found. Please ensure 'en_core_web_sm' is in the correct directory.")
-else:
-    nlp = spacy.load(model_path)
+# Load SpaCy model from local directory
+model_path = os.path.join(os.path.dirname(__file__), 'en_core_web_sm/en_core_web_sm-3.6.0')
+nlp = spacy.load(model_path)
 
 # Set your OpenAI API key
 openai.api_key = st.secrets["openai"]["api_key"]
@@ -116,9 +118,33 @@ def create_embeddings_and_store(documents):
         chunks = split_text_into_chunks(document, chunk_size=500)
         all_chunks.extend(chunks)
 
+    # Enrich the chunks
+    enriched_chunks = [enrich_chunk(chunk) for chunk in all_chunks]
+
     # Create and store embeddings in FAISS
-    vector_store = FAISS.from_texts(all_chunks, embeddings)
+    vector_store = FAISS.from_texts(enriched_chunks, embeddings)
     return vector_store
+
+def enrich_chunk(chunk):
+    """Enrich a text chunk with title, summary, and keywords."""
+    doc = nlp(chunk)
+    title = doc.ents[0].text if doc.ents else "No Title"
+    summary = doc[:15].text  # A simple summary using the first 15 tokens
+    keywords = extract_keywords(chunk)
+    
+    enriched_chunk = {
+        "Chunk": chunk,
+        "Title": title,
+        "Summary": summary,
+        "Keywords": keywords
+    }
+    return enriched_chunk
+
+def extract_keywords(text):
+    """Extract keywords using RAKE."""
+    rake = Rake()
+    rake.extract_keywords_from_text(text)
+    return rake.get_ranked_phrases()
 
 # File uploader for PDF and DOCX files
 uploaded_files = st.file_uploader("Upload PDF/DOCX files", type=["pdf", "docx"], accept_multiple_files=True)
