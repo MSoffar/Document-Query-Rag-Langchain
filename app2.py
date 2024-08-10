@@ -13,8 +13,13 @@ from nltk.tokenize import sent_tokenize
 import asyncio
 
 # Download NLTK data
-nltk.download('punkt')
+# Set the local NLTK data path
+nltk_data_path = os.path.join(os.path.dirname(__file__), 'nltk_data')
+nltk.data.path.append(nltk_data_path)
 
+# Load SpaCy model from local directory
+model_path = os.path.join(os.path.dirname(__file__), 'en_core_web_sm/en_core_web_sm-3.6.0')
+nlp = spacy.load(model_path)
 # Set your OpenAI API key
 openai.api_key = st.secrets["openai"]["api_key"]
 
