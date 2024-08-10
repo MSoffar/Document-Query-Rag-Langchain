@@ -17,8 +17,12 @@ import asyncio
 # Download NLTK data
 nltk.download('punkt')
 
-# Load the SpaCy language model
-nlp = spacy.load('en_core_web_sm')
+try:
+    nlp = spacy.load('en_core_web_sm')
+except OSError:
+    from spacy.cli import download
+    download('en_core_web_sm')
+    nlp = spacy.load('en_core_web_sm')
 
 # Set your OpenAI API key
 openai.api_key = st.secrets["openai"]["api_key"]
