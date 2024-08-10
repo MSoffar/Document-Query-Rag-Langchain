@@ -16,10 +16,6 @@ import re
 import string
 from nltk.corpus import stopwords
 
-# Download NLTK data
-nltk.download('punkt')
-nltk.download('stopwords')
-
 # Initialize tools
 stop_words = set(stopwords.words('english'))
 
