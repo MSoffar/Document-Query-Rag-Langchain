@@ -22,9 +22,10 @@ else:
     nltk.data.path.append(nltk_data_path)
 
 # Load SpaCy model
-model_path = os.path.join(os.path.dirname(__file__), 'en_core_web_sm')
+model_base_path = os.path.join(os.path.dirname(__file__), 'en_core_web_sm')
+model_path = os.path.join(model_base_path, 'en_core_web_sm-3.6.0')
 if not os.path.exists(model_path):
-    st.error("SpaCy model not found. Please ensure 'en_core_web_sm' is in the directory.")
+    st.error("SpaCy model not found. Please ensure 'en_core_web_sm' is in the correct directory.")
 else:
     nlp = spacy.load(model_path)
 
