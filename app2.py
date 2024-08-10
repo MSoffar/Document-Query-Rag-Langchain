@@ -12,7 +12,9 @@ import nltk
 from nltk.tokenize import sent_tokenize
 from collections import Counter
 from sklearn.feature_extraction.text import TfidfVectorizer
-from gensim.summarization import summarize
+from sumy.parsers.plaintext import PlaintextParser
+from sumy.nlp.tokenizers import Tokenizer
+from sumy.summarizers.lsa import LsaSummarizer
 import asyncio
 import os
 
@@ -36,7 +38,7 @@ def read_pdf(file):
 
 def convert_docx_to_text(file):
     doc = Document(file)
-    return '\n'.join([para.text for para in doc.paragraphs])
+    return '\\n'.join([para.text for para in doc.paragraphs])
 
 def download_and_convert_pdf_to_text(pdf_url):
     response = requests.get(pdf_url, timeout=50)
@@ -58,12 +60,12 @@ def extract_keywords(text, top_k=5):
     feature_names = vectorizer.get_feature_names_out()
     return [feature_names[i] for i in indices]
 
-def generate_summary(text, ratio=0.2):
-    """Generate a summary for the text using Gensim's summarize."""
-    try:
-        return summarize(text, ratio=ratio)
-    except ValueError:
-        return text  # If the text is too short to summarize, return it as is.
+def generate_summary(text, sentence_count=2):
+    """Generate a summary for the text using Sumy's LSA summarizer."""
+    parser = PlaintextParser.from_string(text, Tokenizer("english"))
+    summarizer = LsaSummarizer()
+    summary = summarizer(parser.document, sentence_count)
+    return " ".join([str(sentence) for sentence in summary])
 
 def split_text_into_chunks_with_titles(text, chunk_size=500):
     """Splits text into chunks, including titles, keywords, and summaries."""
@@ -83,14 +85,14 @@ def split_text_into_chunks_with_titles(text, chunk_size=500):
             # Augment the chunk before appending
             keywords = extract_keywords(current_chunk)
             summary = generate_summary(current_chunk)
-            augmented_chunk = f"Title: {current_title}\n{current_chunk.strip()}\nKeywords: {', '.join(keywords)}\nSummary: {summary}"
+            augmented_chunk = f"Title: {current_title}\\n{current_chunk.strip()}\\nKeywords: {', '.join(keywords)}\\nSummary: {summary}"
             chunks.append(augmented_chunk)
             current_chunk = sentence + " "
 
     if current_chunk:
         keywords = extract_keywords(current_chunk)
         summary = generate_summary(current_chunk)
-        augmented_chunk = f"Title: {current_title}\n{current_chunk.strip()}\nKeywords: {', '.join(keywords)}\nSummary: {summary}"
+        augmented_chunk = f"Title: {current_title}\\n{current_chunk.strip()}\\nKeywords: {', '.join(keywords)}\\nSummary: {summary}"
         chunks.append(augmented_chunk)
 
     return chunks
@@ -169,7 +171,7 @@ if st.button("Ask") and query:
                         "Your goal is to provide a full and complete answer that is easy to understand and helpful to the user."
                         "Don't answer from your own knowledge, ONLY FROM CHUNKS!"
                     )
-                    user_prompt = sub_query + "\n\n" + "\n\n".join(
+                    user_prompt = sub_query + "\\n\\n" + "\\n\\n".join(
                         f"Chunk {i + 1}: {chunk[:200]}..." for i, chunk in enumerate(top_chunks)
                     )
 
@@ -187,7 +189,7 @@ if st.button("Ask") and query:
                 else:
                     responses.append(f"**{sub_query}**: No relevant chunks retrieved.")
 
-        final_response = "\n\n".join(responses)
+        final_response = "\\n\\n".join(responses)
         st.write("Refined Response:", final_response)
 
         st.session_state.history.append({"query": query, "response": final_response})
