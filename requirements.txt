@@ -6,4 +6,4 @@ langchain
 langchain_community
 openai
 nltk
-spellchecker
+textblob
