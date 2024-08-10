@@ -2,11 +2,9 @@ streamlit
 requests
 PyPDF2
 python-docx
-langchain-openai
-langchain-community
-langchain-core
 openai
+langchain
+faiss-cpu
+tiktoken
+PyMuPDF
 nltk
-rake-nltk
-textblob
-spacy
