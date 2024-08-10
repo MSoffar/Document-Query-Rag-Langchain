@@ -14,7 +14,8 @@ import spacy
 from nltk.tokenize import sent_tokenize
 from rake_nltk import Rake
 import asyncio
-# Set the local NLTK data path
+
+# Load NLTK data from local directory
 nltk_data_path = os.path.join(os.path.dirname(__file__), 'nltk_data')
 nltk.data.path.append(nltk_data_path)
 
@@ -106,13 +107,8 @@ def enrich_chunks(chunks):
 
     for chunk in chunks:
         doc = nlp(chunk)
-
-        # Use the first sentence as the title
-        title = chunk.split('.')[0].strip() 
-
-        # Summary by taking the first 2 sentences
-        summary = '. '.join(chunk.split('.')[:2]).strip()
-
+        title = doc[:10].text.strip()  # First 10 tokens as title (customize as needed)
+        summary = doc[:30].text.strip()  # First 30 tokens as summary (customize as needed)
         rake.extract_keywords_from_text(chunk)
         keywords = rake.get_ranked_phrases()
 
