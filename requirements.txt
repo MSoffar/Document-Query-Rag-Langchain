@@ -2,10 +2,9 @@ streamlit
 requests
 PyPDF2
 python-docx
-openai
-langchain-openai
-langchain-community
-langchain-core
+langchain
 faiss-cpu
+openai
 nltk
-spacy
+scikit-learn
+gensim
