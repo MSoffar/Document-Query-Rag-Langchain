@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import requests
 import PyPDF2
@@ -11,8 +12,7 @@ import openai
 import nltk
 from nltk.tokenize import sent_tokenize
 from rake_nltk import Rake
-from textblob import TextBlob
-import spacy
+import spacy  # Ensure spacy is imported
 import asyncio
 
 nltk_data_path = os.path.join(os.path.dirname(__file__), 'nltk_data')
@@ -20,10 +20,11 @@ nltk.data.path.append(nltk_data_path)
 
 # Load SpaCy model from local directory
 model_path = os.path.join(os.path.dirname(__file__), 'en_core_web_sm/en_core_web_sm-3.6.0')
-nlp = spacy.load(model_path)
+nlp = spacy.load(model_path)  # Fixed the missing parenthesis here
 
 # Set your OpenAI API key
 openai.api_key = st.secrets["openai"]["api_key"]
+
 # Streamlit app setup
 st.title("Conversational Document Query App with FAISS")
 
@@ -97,10 +98,6 @@ def extract_entities(chunk):
     doc = nlp(chunk)
     return [(ent.text, ent.label_) for ent in doc.ents]
 
-def generate_questions(chunk):
-    # Basic example, could be enhanced with a language model
-    return ["What is this chunk about?", "What key points are discussed?"]
-
 def augment_chunk(chunk):
     return {
         "chunk": chunk,
@@ -108,8 +105,6 @@ def augment_chunk(chunk):
         "keywords": extract_keywords(chunk),
         "summary": generate_summary(chunk),
         # "entities": extract_entities(chunk),
-        # "questions": generate_questions(chunk),
-        # "source": "Document X, Page Y"  # Replace with actual source info if available
     }
 
 def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
