@@ -2,11 +2,11 @@ streamlit
 requests
 PyPDF2
 python-docx
-openai
-spacy
-nltk
-rake-nltk
 langchain-openai
 langchain-community
 langchain-core
-asyncio
+openai
+nltk
+rake-nltk
+textblob
+spacy
