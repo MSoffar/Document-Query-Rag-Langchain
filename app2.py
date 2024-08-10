@@ -102,7 +102,7 @@ def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
 def enrich_chunks(chunks):
     """Enrich chunks with title, summary, and keywords."""
     enriched_chunks = []
-    rake = Rake()  # Rake will automatically use stopwords from the local path
+    rake = Rake()
 
     for chunk in chunks:
         doc = nlp(chunk)
