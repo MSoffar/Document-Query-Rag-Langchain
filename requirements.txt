@@ -8,3 +8,4 @@ openai
 nltk
 scikit-learn
 sumy
+spacy
