@@ -4,6 +4,6 @@ PyPDF2
 python-docx
 langchain
 langchain_community
-openai
 nltk
+openai
 textblob
