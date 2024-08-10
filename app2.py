@@ -22,12 +22,6 @@ import os
 nltk_data_path = os.path.join(os.path.dirname(__file__), 'nltk_data')
 nltk.data.path.append(nltk_data_path)
 
-# Download necessary NLTK data if not already present
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt', download_dir=nltk_data_path)
-
 # Set your OpenAI API key
 openai.api_key = st.secrets["openai"]["api_key"]
 
