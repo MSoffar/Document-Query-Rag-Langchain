@@ -2,9 +2,8 @@ streamlit
 requests
 PyPDF2
 python-docx
-openai
 langchain
-faiss-cpu
-tiktoken
-PyMuPDF
+langchain_community
+openai
 nltk
+spellchecker
