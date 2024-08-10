@@ -13,8 +13,6 @@ import os
 import spacy
 from nltk.tokenize import sent_tokenize
 from rake_nltk import Rake
-import asyncio
-from transformers import pipeline
 
 # Set the local NLTK data path
 nltk_data_path = os.path.join(os.path.dirname(__file__), 'nltk_data')
@@ -23,9 +21,6 @@ nltk.data.path.append(nltk_data_path)
 # Load SpaCy model from local directory
 model_path = os.path.join(os.path.dirname(__file__), 'en_core_web_sm/en_core_web_sm-3.6.0')
 nlp = spacy.load(model_path)
-
-# Initialize a summarization pipeline from Hugging Face
-summarizer = pipeline("summarization")
 
 # Set your OpenAI API key
 openai.api_key = st.secrets["openai"]["api_key"]
@@ -104,22 +99,6 @@ def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
 
     return chunks
 
-def generate_title(doc):
-    """Generate a title for the chunk using the most important entity or noun phrase."""
-    for ent in doc.ents:
-        if ent.label_ in ["PERSON", "ORG", "GPE", "PRODUCT"]:
-            return ent.text
-    # Fallback to the first noun phrase if no entities found
-    for np in doc.noun_chunks:
-        return np.text
-    # Fallback to the first 10 tokens if no noun phrase found
-    return doc[:10].text.strip()
-
-def generate_summary(text):
-    """Generate a summary for the chunk using a pre-trained model."""
-    summary = summarizer(text, max_length=50, min_length=25, do_sample=False)
-    return summary[0]['summary_text']
-
 def enrich_chunks(chunks):
     """Enrich chunks with title, summary, and keywords."""
     enriched_chunks = []
@@ -127,8 +106,13 @@ def enrich_chunks(chunks):
 
     for chunk in chunks:
         doc = nlp(chunk)
-        title = generate_title(doc)
-        summary = generate_summary(chunk)
+
+        # Use the first sentence as the title
+        title = chunk.split('.')[0].strip() 
+
+        # Summary by taking the first 2 sentences
+        summary = '. '.join(chunk.split('.')[:2]).strip()
+
         rake.extract_keywords_from_text(chunk)
         keywords = rake.get_ranked_phrases()
 
