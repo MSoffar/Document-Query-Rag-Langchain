@@ -10,3 +10,4 @@ rake-nltk
 langchain-openai
 langchain-community
 langchain-core
+transformers
