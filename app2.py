@@ -15,8 +15,9 @@ from nltk.tokenize import sent_tokenize
 from rake_nltk import Rake
 import asyncio
 
-
-nltk.download('punkt')
+# Load NLTK's punkt tokenizer directly (assuming it is already downloaded)
+nltk.data.path.append('/home/appuser/nltk_data')  # Use the correct path where nltk data is stored
+nltk.data.find('tokenizers/punkt')
 
 # Load SpaCy model from local directory
 model_path = os.path.join(os.path.dirname(__file__), 'en_core_web_sm/en_core_web_sm-3.6.0')
