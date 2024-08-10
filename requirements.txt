@@ -5,6 +5,8 @@ docx
 langchain-openai
 langchain-community
 langchain-core
+openai
 nltk
 spacy
 rake-nltk
+faiss-cpu
