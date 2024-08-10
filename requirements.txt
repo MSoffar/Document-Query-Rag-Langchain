@@ -2,8 +2,9 @@ streamlit
 requests
 PyPDF2
 python-docx
-langchain
-langchain_community
 openai
+langchain
+faiss-cpu
+tiktoken
+PyMuPDF
 nltk
-spellchecker
