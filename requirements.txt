@@ -1,11 +1,12 @@
 streamlit
 requests
-PyPDF2
+pypdf2
 python-docx
-langchain
-faiss-cpu
+langchain-openai
+langchain-community
+langchain-core
 openai
 nltk
-scikit-learn
-sumy
+rake-nltk
 spacy
+textblob
