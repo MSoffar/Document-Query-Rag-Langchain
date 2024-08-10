@@ -10,10 +10,15 @@ from langchain_core.vectorstores import VectorStoreRetriever
 import openai
 import nltk
 from nltk.tokenize import sent_tokenize
+from rake_nltk import Rake
+import spacy
 import asyncio
 
 # Download NLTK data
 nltk.download('punkt')
+
+# Load the SpaCy language model
+nlp = spacy.load('en_core_web_sm')
 
 # Set your OpenAI API key
 openai.api_key = st.secrets["openai"]["api_key"]
@@ -21,18 +26,23 @@ openai.api_key = st.secrets["openai"]["api_key"]
 # Streamlit app setup
 st.title("Conversational Document Query App with FAISS")
 
+
 def read_pdf(file):
-    """Read a PDF file and convert it to text."""
+    """Read a PDF file and convert it to text, including page numbers."""
     reader = PyPDF2.PdfReader(file)
     text = ''
+    page_number = 1
     for page in reader.pages:
-        text += page.extract_text()
+        text += f"\n[Page {page_number}]\n" + page.extract_text()
+        page_number += 1
     return text
+
 
 def convert_docx_to_text(file):
     """Convert a DOCX file to text."""
     doc = Document(file)
     return '\n'.join([para.text for para in doc.paragraphs])
+
 
 def download_and_convert_pdf_to_text(pdf_url):
     """Download a PDF from a URL and convert it to text."""
@@ -41,6 +51,7 @@ def download_and_convert_pdf_to_text(pdf_url):
     pdf_file = BytesIO(response.content)
     return read_pdf(pdf_file)
 
+
 def download_and_convert_docx_to_text(docx_url):
     """Download a DOCX from a URL and convert it to text."""
     response = requests.get(docx_url, timeout=50)
@@ -48,32 +59,76 @@ def download_and_convert_docx_to_text(docx_url):
     docx_file = BytesIO(response.content)
     return convert_docx_to_text(docx_file)
 
+
 def process_documents(uploaded_files, urls):
     """Process PDF and DOCX files and URLs."""
-    documents = []
+    documents = {}
 
     # Process uploaded files
     for file in uploaded_files:
         if file.type == "application/pdf":
             text = read_pdf(file)
-            documents.append(text)
+            documents[file.name] = text
         elif file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
             text = convert_docx_to_text(file)
-            documents.append(text)
+            documents[file.name] = text
 
     # Process URLs
     for url in urls:
         try:
             if url.lower().endswith('.pdf'):
                 text = download_and_convert_pdf_to_text(url)
-                documents.append(text)
+                documents[url.split('/')[-1]] = text
             elif url.lower().endswith('.docx'):
                 text = download_and_convert_docx_to_text(url)
-                documents.append(text)
+                documents[url.split('/')[-1]] = text
         except Exception as e:
             st.error(f"Failed to process URL {url}: {e}")
 
     return documents
+
+
+def generate_title(chunk):
+    return chunk.split('.')[0][:50] + '...'
+
+
+def extract_keywords(chunk):
+    r = Rake()
+    r.extract_keywords_from_text(chunk)
+    return r.get_ranked_phrases()
+
+
+def generate_summary(chunk):
+    sentences = sent_tokenize(chunk)
+    return sentences[0] if len(sentences) > 1 else chunk[:100] + '...'
+
+
+def extract_entities(chunk):
+    doc = nlp(chunk)
+    return [(ent.text, ent.label_) for ent in doc.ents]
+
+
+def generate_questions(chunk):
+    return ["What is this chunk about?", "What key points are discussed?"]
+
+
+def augment_chunk(chunk, document_name="Unknown Document"):
+    # Extract page number if available
+    page_info = "Unknown Page"
+    if "[Page" in chunk:
+        page_info = chunk.split("[Page", 1)[1].split("]", 1)[0].strip()
+        chunk = chunk.replace(f"[Page {page_info}]", "").strip()
+
+    return {
+        "chunk": chunk,
+        "title": generate_title(chunk),
+        "keywords": extract_keywords(chunk),
+        "summary": generate_summary(chunk),
+        "entities": extract_entities(chunk),
+        "questions": generate_questions(chunk),
+        "source": f"{document_name}, Page {page_info}"
+    }
+
 
 def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
     sentences = sent_tokenize(text)  # Split text into sentences
@@ -92,19 +147,24 @@ def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
 
     return chunks
 
+
 def create_embeddings_and_store(documents):
     """Create embeddings for the documents and store them in FAISS."""
     embeddings = OpenAIEmbeddings(openai_api_key=openai.api_key)
 
-    # Split documents into smaller chunks using NLTK
     all_chunks = []
-    for document in documents:
-        chunks = split_text_into_chunks(document, chunk_size=500)
-        all_chunks.extend(chunks)
+    for document_name, document_text in documents.items():
+        chunks = split_text_into_chunks(document_text, chunk_size=500)
+        for chunk in chunks:
+            augmented_chunk = augment_chunk(chunk, document_name=document_name)
+            all_chunks.append(augmented_chunk)
 
     # Create and store embeddings in FAISS
-    vector_store = FAISS.from_texts(all_chunks, embeddings)
-    return vector_store
+    texts = [chunk["chunk"] for chunk in all_chunks]
+    vector_store = FAISS.from_texts(texts, embeddings)
+
+    return vector_store, all_chunks
+
 
 # File uploader for PDF and DOCX files
 uploaded_files = st.file_uploader("Upload PDF/DOCX files", type=["pdf", "docx"], accept_multiple_files=True)
@@ -126,8 +186,10 @@ if st.button("Process Documents"):
     documents = process_documents(uploaded_files, urls)
 
     if documents:
-        # Create and store embeddings
-        st.session_state.vector_store = create_embeddings_and_store(documents)
+        # Create and store embeddings, and get augmented chunks
+        vector_store, all_chunks = create_embeddings_and_store(documents)
+        st.session_state.vector_store = vector_store
+        st.session_state.augmented_chunks = all_chunks
         st.success("Documents processed and embeddings created.")
     else:
         st.warning("No documents to process.")
@@ -141,10 +203,12 @@ for entry in st.session_state.history:
 # Text input for the user's query
 query = st.text_input("Please enter your query:", key="user_query")
 
+
 async def get_relevant_chunks(sub_query, retriever, top_k=5):
     # Retrieve the top K most relevant chunks asynchronously
     retrieved_docs = await retriever.ainvoke(sub_query)
     return [doc.page_content for doc in retrieved_docs[:top_k]]
+
 
 if st.button("Delete Chat"):
     st.session_state.history = []  # Clear the chat history
@@ -156,7 +220,7 @@ if st.button("Ask") and query:
         retriever = VectorStoreRetriever(vectorstore=vector_store)
 
         # Split the query into sub-queries if needed
-        sub_queries = query.split('?')  # Splitting by question marks as a simple heuristic
+        sub_queries = query.split('?')
 
         responses = []
 
@@ -168,17 +232,21 @@ if st.button("Ask") and query:
                 top_chunks = asyncio.run(get_relevant_chunks(sub_query, retriever, top_k=5))
 
                 if top_chunks:
-                    # Create a prompt using the retrieved chunks
+                    # Retrieve augmented data from session state
+                    augmented_data = [chunk for chunk in st.session_state.augmented_chunks if
+                                      chunk["chunk"] in top_chunks]
+
+                    # Create a prompt using the retrieved chunks and metadata
                     system_prompt = (
-                        "You are a helpful and knowledgeable assistant. You are given a set of text chunks from documents. "
+                        "You are a helpful and knowledgeable assistant. You are given a set of text chunks from documents, along with metadata such as title, summary, and keywords. "
                         "Please find the most relevant information based on the question below, "
-                        "using only the provided chunks. Ensure your response is comprehensive, accurate, and informative, "
-                        "covering all aspects of the question to the best of your ability. Do not reference the chunks directly. "
-                        "Your goal is to provide a full and complete answer that is easy to understand and helpful to the user."
-                        "Don't answer from your own knowledge, ONLY FROM CHUNKS!"
+                        "using only the provided chunks and metadata. Ensure your response is comprehensive, accurate, and informative, "
+                        "covering all aspects of the question to the best of your ability."
                     )
+
                     user_prompt = sub_query + "\n\n" + "\n\n".join(
-                        f"Chunk {i + 1}: {chunk[:200]}..." for i, chunk in enumerate(top_chunks)
+                        f"Chunk {i + 1}: {chunk['chunk'][:200]}... Title: {chunk['title']}, Summary: {chunk['summary']}, Keywords: {', '.join(chunk['keywords'])}"
+                        for i, chunk in enumerate(augmented_data)
                     )
 
                     response = openai.chat.completions.create(
