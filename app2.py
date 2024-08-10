@@ -1,19 +1,20 @@
-import os
 import streamlit as st
 import requests
 import PyPDF2
 from io import BytesIO
 from docx import Document
 from langchain_openai import OpenAIEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_core.vectorstores import VectorStoreRetriever
 import openai
 import nltk
 from nltk.tokenize import sent_tokenize
 from rake_nltk import Rake
+from textblob import TextBlob
 import spacy
 import asyncio
-
+import os
 nltk_data_path = os.path.join(os.path.dirname(__file__), 'nltk_data')
 nltk.data.path.append(nltk_data_path)
 
@@ -82,27 +83,24 @@ def process_documents(uploaded_files, urls):
     return documents
 
 def generate_title(chunk):
-    # Use the first sentence for a quick title
-    sentences = sent_tokenize(chunk)
-    if sentences:
-        title = sentences[0][:50] + '...'  # Take the first 50 characters of the first sentence
-        return title
-    return chunk[:50] + '...'  # Fallback to the first 50 characters of the chunk
+    return chunk.split('.')[0][:50] + '...'
 
 def extract_keywords(chunk):
-    # Limit the length of text processed for faster extraction
     r = Rake()
-    r.extract_keywords_from_text(chunk[:200])  # Process only the first 200 characters
-    return r.get_ranked_phrases()[:5]  # Return the top 5 keywords
+    r.extract_keywords_from_text(chunk)
+    return r.get_ranked_phrases()
 
 def generate_summary(chunk):
     sentences = sent_tokenize(chunk)
-    if len(sentences) > 1:
-        # Combine the first sentence and another sentence that contains the most keywords
-        keywords = extract_keywords(chunk)
-        important_sentence = max(sentences[1:], key=lambda s: sum(1 for k in keywords if k in s))
-        return sentences[0] + " " + important_sentence
-    return chunk[:100] + '...'  # Fallback to the first 100 characters
+    return sentences[0] if len(sentences) > 1 else chunk[:100] + '...'
+
+def extract_entities(chunk):
+    doc = nlp(chunk)
+    return [(ent.text, ent.label_) for ent in doc.ents]
+
+def generate_questions(chunk):
+    # Basic example, could be enhanced with a language model
+    return ["What is this chunk about?", "What key points are discussed?"]
 
 def augment_chunk(chunk):
     return {
@@ -110,6 +108,9 @@ def augment_chunk(chunk):
         "title": generate_title(chunk),
         "keywords": extract_keywords(chunk),
         "summary": generate_summary(chunk),
+        # "entities": extract_entities(chunk),
+        # "questions": generate_questions(chunk),
+        # "source": "Document X, Page Y"  # Replace with actual source info if available
     }
 
 def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
