@@ -13,12 +13,8 @@ import os
 import spacy
 from nltk.tokenize import sent_tokenize
 from rake_nltk import Rake
-import textacy
-import concurrent.futures
-
 import asyncio
-
-# Load NLTK data from local directory
+# Set the local NLTK data path
 nltk_data_path = os.path.join(os.path.dirname(__file__), 'nltk_data')
 nltk.data.path.append(nltk_data_path)
 
@@ -73,74 +69,61 @@ def process_documents(uploaded_files, urls):
             documents.append(text)
 
     # Process URLs
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = []
-        for url in urls:
+    for url in urls:
+        try:
             if url.lower().endswith('.pdf'):
-                futures.append(executor.submit(download_and_convert_pdf_to_text, url))
-            elif url.lower().endswith('.docx'):
-                futures.append(executor.submit(download_and_convert_docx_to_text, url))
-        
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                text = future.result()
+                text = download_and_convert_pdf_to_text(url)
                 documents.append(text)
-            except Exception as e:
-                st.error(f"Failed to process a URL: {e}")
+            elif url.lower().endswith('.docx'):
+                text = download_and_convert_docx_to_text(url)
+                documents.append(text)
+        except Exception as e:
+            st.error(f"Failed to process URL {url}: {e}")
 
     return documents
 
 def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
     sentences = sent_tokenize(text)  # Split text into sentences
     chunks = []
-    current_chunk = []
+    current_chunk = ""
 
     for sentence in sentences:
-        if sum(len(s) for s in current_chunk) + len(sentence) <= chunk_size:
-            current_chunk.append(sentence)
+        if len(current_chunk) + len(sentence) <= chunk_size:
+            current_chunk += sentence + " "
         else:
-            chunks.append(" ".join(current_chunk).strip())
-            current_chunk = [sentence]
+            chunks.append(current_chunk.strip())
+            current_chunk = sentence + " "
 
     if current_chunk:
-        chunks.append(" ".join(current_chunk).strip())
+        chunks.append(current_chunk.strip())
 
     return chunks
 
-def generate_title(chunk):
-    """Generate a title for the chunk."""
-    doc = nlp(chunk)
-    # Extract noun phrases or proper nouns as a title candidate
-    title = " ".join([token.text for token in doc if token.pos_ in ["PROPN", "NOUN", "VERB"]][:10])
-    return title if title else chunk.split('.')[0].strip()  # Fallback to first sentence if title is empty
-
-def generate_summary(chunk):
-    """Generate a summary for the chunk using textacy."""
-    doc = textacy.make_spacy_doc(chunk, lang=nlp)
-    summary = textacy.extractive.summarize_text(
-        doc.text, limit=2
-    )
-    return summary.strip()
-
-def enrich_chunk(chunk):
-    """Enrich a single chunk with title, summary, and keywords."""
-    rake = Rake()
-    title = generate_title(chunk)
-    summary = generate_summary(chunk)
-    rake.extract_keywords_from_text(chunk)
-    keywords = rake.get_ranked_phrases()
-
-    return {
-        "chunk": chunk,
-        "title": title,
-        "summary": summary,
-        "keywords": keywords
-    }
-
 def enrich_chunks(chunks):
-    """Enrich chunks with title, summary, and keywords in parallel."""
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        enriched_chunks = list(executor.map(enrich_chunk, chunks))
+    """Enrich chunks with title, summary, and keywords."""
+    enriched_chunks = []
+    rake = Rake()
+
+    for chunk in chunks:
+        doc = nlp(chunk)
+
+        # Use the first sentence as the title
+        title = chunk.split('.')[0].strip() 
+
+        # Summary by taking the first 2 sentences
+        summary = '. '.join(chunk.split('.')[:2]).strip()
+
+        rake.extract_keywords_from_text(chunk)
+        keywords = rake.get_ranked_phrases()
+
+        enriched_chunk = {
+            "chunk": chunk,
+            "title": title,
+            "summary": summary,
+            "keywords": keywords
+        }
+        enriched_chunks.append(enriched_chunk)
+
     return enriched_chunks
 
 def create_embeddings_and_store(documents):
