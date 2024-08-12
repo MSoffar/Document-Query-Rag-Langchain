@@ -225,7 +225,7 @@ if st.button("Ask") and query:
                     )
 
                     user_prompt = sub_query + "\n\n" + "\n\n".join(
-                        f"Chunk {i + 1}: {chunk['chunk'][:200]}... Title: {chunk['title']}, Summary: {chunk['summary']}, Keywords: {', '.join(chunk['keywords'])}"
+                        f"Chunk {i + 1}: {chunk['chunk'][:200]}... Title: {chunk['title']},Keywords: {', '.join(chunk['keywords'])}"
                         for i, chunk in enumerate(augmented_data)
                     )
 
