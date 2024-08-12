@@ -81,34 +81,40 @@ def process_documents(uploaded_files, urls):
             st.error(f"Failed to process URL {url}: {e}")
 
     return documents
-
-def generate_title(chunk):
-    return chunk.split('.')[0][:50] + '...'
-
 def extract_keywords(chunk):
     r = Rake()
     r.extract_keywords_from_text(chunk)
     return r.get_ranked_phrases()
+def generate_title(chunk):
+    """Generate a title by extracting the most significant noun phrase using SpaCy."""
+    doc = nlp(chunk)
+    noun_phrases = [np.text for np in doc.noun_chunks]
+    title = noun_phrases[0] if noun_phrases else chunk[:50] + '...'
+    return title
 
 def generate_summary(chunk):
-    sentences = sent_tokenize(chunk)
-    return sentences[0] if len(sentences) > 1 else chunk[:100] + '...'
+    """Generate a summary by extracting the most relevant sentences."""
+    doc = nlp(chunk)
+    sentences = [sent.text for sent in doc.sents]
+    
+    # Simple heuristic: take the first sentence or the most informative one (e.g., containing named entities)
+    if len(sentences) > 1:
+        summary = sentences[0]
+    else:
+        summary = chunk[:100] + '...'
+    
+    return summary
 
 def extract_entities(chunk):
     doc = nlp(chunk)
     return [(ent.text, ent.label_) for ent in doc.ents]
-
-def generate_questions(chunk):
-    # Basic example, could be enhanced with a language model
-    return ["What is this chunk about?", "What key points are discussed?"]
-
 def augment_chunk(chunk):
     return {
         "chunk": chunk,
         "title": generate_title(chunk),
         "keywords": extract_keywords(chunk),
         "summary": generate_summary(chunk),
-        # "entities": extract_entities(chunk),
+        "entities": extract_entities(chunk),
         # "questions": generate_questions(chunk),
         # "source": "Document X, Page Y"  # Replace with actual source info if available
     }
