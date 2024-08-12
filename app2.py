@@ -12,12 +12,9 @@ import nltk
 from nltk.tokenize import sent_tokenize
 from rake_nltk import Rake
 from textblob import TextBlob
-from sklearn.feature_extraction.text import TfidfVectorizer
 import spacy
 import asyncio
 import os
-import numpy as np
-
 nltk_data_path = os.path.join(os.path.dirname(__file__), 'nltk_data')
 nltk.data.path.append(nltk_data_path)
 
@@ -86,55 +83,34 @@ def process_documents(uploaded_files, urls):
     return documents
 
 def generate_title(chunk):
-    """Generate a title by selecting the highest TF-IDF scoring sentence."""
-    sentences = sent_tokenize(chunk)
-    if len(sentences) == 0:
-        return "Untitled"
-
-    if len(sentences) > 10:
-        sentences = sentences[:10]  # Limit to the first 10 sentences for speed
-
-    vectorizer = TfidfVectorizer(stop_words='english')
-    X = vectorizer.fit_transform(sentences)
-    scores = X.sum(axis=1).A1  # Sum TF-IDF scores for each sentence
-    best_sentence = sentences[np.argmax(scores)]
-    
-    return best_sentence[:50] + '...' if len(best_sentence) > 50 else best_sentence
-
-def generate_summary(chunk):
-    """Generate a summary by selecting the top two TF-IDF scoring sentences."""
-    sentences = sent_tokenize(chunk)
-    if len(sentences) == 0:
-        return "No summary available."
-
-    if len(sentences) > 10:
-        sentences = sentences[:10]  # Limit to the first 10 sentences for speed
-
-    vectorizer = TfidfVectorizer(stop_words='english')
-    X = vectorizer.fit_transform(sentences)
-    scores = X.sum(axis=1).A1  # Sum TF-IDF scores for each sentence
-    ranked_sentences = [sentences[i] for i in np.argsort(scores)[::-1]]
-    
-    summary = ' '.join(ranked_sentences[:2])  # Take the top 2 sentences
-    return summary[:200] + '...' if len(summary) > 200 else summary
+    return chunk.split('.')[0][:50] + '...'
 
 def extract_keywords(chunk):
     r = Rake()
     r.extract_keywords_from_text(chunk)
     return r.get_ranked_phrases()
 
+def generate_summary(chunk):
+    sentences = sent_tokenize(chunk)
+    return sentences[0] if len(sentences) > 1 else chunk[:100] + '...'
+
 def extract_entities(chunk):
     doc = nlp(chunk)
     return [(ent.text, ent.label_) for ent in doc.ents]
 
+def generate_questions(chunk):
+    # Basic example, could be enhanced with a language model
+    return ["What is this chunk about?", "What key points are discussed?"]
+
 def augment_chunk(chunk):
-    """Augment the chunk with title, keywords, summary, and entities."""
     return {
         "chunk": chunk,
         "title": generate_title(chunk),
         "keywords": extract_keywords(chunk),
         "summary": generate_summary(chunk),
-        "entities": extract_entities(chunk),
+        # "entities": extract_entities(chunk),
+        # "questions": generate_questions(chunk),
+        # "source": "Document X, Page Y"  # Replace with actual source info if available
     }
 
 def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
@@ -154,40 +130,23 @@ def split_text_into_chunks(text: str, chunk_size: int = 500) -> list:
 
     return chunks
 
-def process_large_documents(documents):
-    """Process large documents efficiently by limiting TF-IDF usage."""
-    all_chunks = []
-    
-    for document in documents:
-        # Split into smaller chunks to handle large documents
-        chunks = split_text_into_chunks(document, chunk_size=500)
-        
-        for i, chunk in enumerate(chunks):
-            if i % 10 == 0 or i == len(chunks) - 1:  # Apply TF-IDF selectively
-                augmented_chunk = augment_chunk(chunk)
-            else:
-                augmented_chunk = {
-                    "chunk": chunk,
-                    "title": chunk.split()[0],  # Simplified title
-                    "keywords": extract_keywords(chunk),
-                    "summary": chunk[:200] + '...',  # Simplified summary
-                    "entities": extract_entities(chunk),
-                }
-            all_chunks.append(augmented_chunk)
-    
-    return all_chunks
-
 def create_embeddings_and_store(documents):
     """Create embeddings for the documents and store them in FAISS."""
     embeddings = OpenAIEmbeddings(openai_api_key=openai.api_key)
 
-    # Process documents
-    all_chunks = process_large_documents(documents)
+    # Split documents into smaller chunks using NLTK
+    all_chunks = []
+    for document in documents:
+        chunks = split_text_into_chunks(document, chunk_size=500)
+        for chunk in chunks:
+            augmented_chunk = augment_chunk(chunk)
+            all_chunks.append(augmented_chunk)
 
     # Create and store embeddings in FAISS
     texts = [chunk["chunk"] for chunk in all_chunks]
     vector_store = FAISS.from_texts(texts, embeddings)
 
+    # Optionally, store augmented data elsewhere or return it
     return vector_store, all_chunks
 
 # File uploader for PDF and DOCX files
@@ -271,7 +230,7 @@ if st.button("Ask") and query:
                     )
 
                     response = openai.chat.completions.create(
-                        engine="gpt-4o-mini",
+                        model="gpt-4o-mini",
                         messages=[
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": user_prompt}
