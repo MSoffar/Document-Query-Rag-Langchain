@@ -107,7 +107,7 @@ def augment_chunk(chunk):
         "chunk": chunk,
         "title": generate_title(chunk),
         "keywords": extract_keywords(chunk),
-        "summary": generate_summary(chunk),
+        #"summary": generate_summary(chunk),
         # "entities": extract_entities(chunk),
         # "questions": generate_questions(chunk),
         # "source": "Document X, Page Y"  # Replace with actual source info if available
