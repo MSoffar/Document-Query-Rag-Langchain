@@ -10,3 +10,4 @@ nltk
 rake-nltk
 spacy
 textblob
+faiss-cpu
